@@ -33,40 +33,30 @@ std::vector<unsigned char> intToBytes(uint64_t paramInt) {
     return arrayOfByte;
 }
 
-int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        std::cerr << "Wrong number of arguments" << std::endl;
-        return FAILURE;
-    }
-
-    struct sockaddr_in server_address;
-    struct pollfd sockets[_POSIX_OPEN_MAX];
-    const std::string port_str(argv[1]);
-    const std::string filename(argv[2]);
-
+std::string getString(const std::string &filename) {
     std::streampos size;
     char *memblock;
-
-    std::ifstream file(filename, std::ios::in | std::ios::binary | std::ios::ate);
+    std::ifstream file(filename, std::ios_base::in | std::ios_base::binary | std::ios_base::ate);
     if (file.is_open()) {
         size = file.tellg();
         memblock = new char[size];
-        file.seekg(0, std::ios::beg);
+        file.seekg(0, std::ios_base::beg);
         file.read(memblock, size);
         file.close();
     } else {
-        std::cerr << "Couldn't open file" << std::endl;
-        return FAILURE;
+        throw std::runtime_error("Couldn't open file" );
     }
-
-    const std::string file_content(memblock);
+    std::string res(memblock);
     delete[] memblock;
 
-    if (file_content.size() + 1> MAX_UDP_PACKET_SIZE - MSG_WITHOUT_FILE_SIZE) {
-        std::cerr << "File is too large to fit into datagram" << std::endl;
-        return FAILURE;
+    if (res.size() + 1> MAX_UDP_PACKET_SIZE - MSG_WITHOUT_FILE_SIZE) {
+        throw std::runtime_error("File is too large to fit into datagram" );
     }
 
+    return res;
+}
+
+void initialize_connection(sockaddr_in &server_address, pollfd* sockets, const std::string &port_str) {
     sockets[0].events = POLLIN;
     sockets[0].revents = 0;
 
@@ -78,17 +68,36 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < _POSIX_OPEN_MAX; ++i) {
         sockets[i].fd = socket(AF_INET, SOCK_DGRAM, 0);
         if (sockets[i].fd < 0) {
-            std::cerr << "Failed to open socket" << std::endl;
-            return FAILURE;
+            throw std::runtime_error("Failed to open socket");
         }
     }
 
     server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(((uint16_t) std::stoi(port_str)));
+    server_address.sin_port = htons(((uint16_t) stoi(port_str)));
     server_address.sin_addr.s_addr = htonl(INADDR_ANY);
 
     if (bind(sockets[0].fd, (struct sockaddr *) &server_address, (socklen_t) sizeof(server_address)) < 0) {
-        std::cerr << "Failed to bind socket" << std::endl;
+        throw std::runtime_error("Failed to bind socket");
+    }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        std::cerr << "Wrong number of arguments" << std::endl;
+        return FAILURE;
+    }
+
+    struct sockaddr_in server_address;
+    struct pollfd sockets[_POSIX_OPEN_MAX];
+    const std::string port_str(argv[1]);
+    const std::string filename(argv[2]);
+
+    std::string file_content = getString(filename);
+
+    try {
+        initialize_connection(server_address, sockets, port_str);
+    } catch (std::runtime_error e) {
+        std::cerr << e.what() << std::endl;
         return FAILURE;
     }
 
