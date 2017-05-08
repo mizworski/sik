@@ -34,10 +34,26 @@ struct message {
     char ch;
 };
 
+void parse_message(std::string timestamp_str, const char msg_char, message &message) {
+    uint64_t timestamp = std::stoull(timestamp_str);
+    time_t raw_time = timestamp;
+    struct tm *time_info = gmtime(&raw_time);
+
+    const int32_t time_year = time_info->tm_year + 1900;
+    if (time_year < 1717 || time_year > 4242) {
+        throw std::runtime_error("Wrong timestamp year");
+    }
+
+    message.timestamp = htobe64(timestamp);
+    message.ch = msg_char;
+}
+
 int main(int argc, char *argv[]) {
     struct addrinfo addr_hints;
     struct addrinfo *addr_result;
     struct sockaddr_in my_address;
+    int32_t sock;
+    struct message msg;
 
     if (argc != 4 && argc != 5) {
         std::cerr << "Wrong number of arguments." << std::endl;
@@ -45,41 +61,32 @@ int main(int argc, char *argv[]) {
     }
 
     init_addr_hints(addr_hints);
-
-    /// Check if timestamp is correct
     std::string timestamp_str(argv[1]);
-    uint64_t timestamp;
+    const char msg_char = *argv[2];
 
     try {
-        timestamp = std::stoull(timestamp_str);
+        parse_message(timestamp_str, msg_char, msg);
     } catch (std::invalid_argument e) {
         std::cerr << "No conversion could be performed." << std::endl;
         return FAILURE;
     } catch (std::out_of_range e) {
         std::cerr << "Converted value fell out of the range of the result type." << std::endl;
         return FAILURE;
-    }
-
-    time_t raw_time = timestamp;
-    struct tm *time_info = gmtime(&raw_time);
-
-    const int32_t time_year = time_info->tm_year + 1900;
-    if (time_year < 1717 || time_year > 4242) {
-        std::cerr << "Wrong timestamp year" << std::endl;
+    } catch (std::runtime_error e) {
+        std::cerr << e.what() << std::endl;
         return FAILURE;
     }
 
-    uint64_t msg_timestamp = htobe64(timestamp);
-
-    /// Char to send
-    const char msg_char = *argv[2];
-
     /// Host and port
     std::string host_str(argv[3]);
-    std::string port_str("20160");
+
+    std::string port_str;
+
+    port_str = "20160";
     if (argc == 5) {
         port_str = argv[4];
     }
+
     if (getaddrinfo(host_str.c_str(), NULL, &addr_hints, &addr_result) != 0) {
         std::cerr << "Failed to get address of server." << std::endl;
         return FAILURE;
@@ -92,25 +99,23 @@ int main(int argc, char *argv[]) {
     freeaddrinfo(addr_result);
 
     /// Open socket
-    int32_t sock = socket(PF_INET, SOCK_DGRAM, 0);
+    sock = socket(PF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         std::cerr << "Failed to open socket." << std::endl;
         return FAILURE;
     }
 
-    int sflags = 0;
-
-    size_t msg_len = 9;
-
     std::ostringstream os;
-    auto msg_timestamp_bytes = intToBytes(msg_timestamp);
+    auto msg_timestamp_bytes = intToBytes(msg.timestamp);
     for (auto byte : msg_timestamp_bytes) {
         os << byte;
     }
     os << msg_char;
     std::string message(os.str());
+
+    size_t msg_len = message.size();
     socklen_t rcv_address_len = (socklen_t) sizeof(my_address);
-    ssize_t snd_len = sendto(sock, message.c_str(), msg_len, sflags, (struct sockaddr *) &my_address, rcv_address_len);
+    ssize_t snd_len = sendto(sock, message.c_str(), msg_len, 0, (struct sockaddr *) &my_address, rcv_address_len);
 
     if (snd_len != (ssize_t) msg_len) {
         std::cerr << "Failed to send message." << std::endl;
@@ -126,7 +131,6 @@ int main(int argc, char *argv[]) {
         rcv_address_len = (socklen_t) sizeof(server_address);
         ssize_t rcv_len = recvfrom(sock, &raw_msg, rcv_msg_len, flags, (struct sockaddr *) &server_address,
                                    &rcv_address_len);
-
 
         struct message msg;
         msg.timestamp = 0;
@@ -144,7 +148,6 @@ int main(int argc, char *argv[]) {
         size_t file_beg = 9;
         std::string file_content(raw_msg, rcv_len);
         file_content = file_content.substr(file_beg);
-        std::cout << msg.timestamp << msg.ch << file_content << std::flush;
-
+        std::cout << msg.timestamp << " " << msg.ch << " " << file_content << "\n" << std::flush;
     }
 }

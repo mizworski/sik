@@ -18,7 +18,8 @@
 
 const int32_t FAILURE = 1;
 const int32_t DATAGRAM_BUFFER_SIZE = 4096;
-const int MAX_UDP_PACKET_SIZE = 65507;
+const int32_t MAX_UDP_PACKET_SIZE = 65507;
+const int32_t MSG_WITHOUT_FILE_SIZE = 9;
 
 struct message {
     uint64_t timestamp;
@@ -59,6 +60,12 @@ int main(int argc, char *argv[]) {
     }
 
     const std::string file_content(memblock);
+    delete[] memblock;
+
+    if (file_content.size() + 1> MAX_UDP_PACKET_SIZE - MSG_WITHOUT_FILE_SIZE) {
+        std::cerr << "File is too large to fit into datagram" << std::endl;
+        return FAILURE;
+    }
 
     sockets[0].events = POLLIN;
     sockets[0].revents = 0;
@@ -114,10 +121,13 @@ int main(int argc, char *argv[]) {
                 ssize_t len = recvfrom(sockets[0].fd, &raw_msg, MAX_UDP_PACKET_SIZE, flags,
                                        (struct sockaddr *) &client_address, &rcva_len);
 
+                time_t current_time = std::time(0);
+                clients.insert({{client_address.sin_addr.s_addr, client_address.sin_port},
+                                {current_time,                   client_address}});
                 if (len < 0) {
                     std::cerr << "Error while reading" << std::endl;
                     return FAILURE;
-                } else if (len != 9) {
+                } else if (len != MSG_WITHOUT_FILE_SIZE) {
                     std::cerr << "Wrong message received: not valid length." << std::endl;
                     std::cerr << "Src: " << inet_ntoa(client_address.sin_addr) << ":" << client_address.sin_port << std::endl;
                 } else {
@@ -130,10 +140,6 @@ int main(int argc, char *argv[]) {
                         mult *= 256;
                     }
                     msg.ch = raw_msg[8];
-
-                    time_t current_time = std::time(0);
-                    clients.insert({{client_address.sin_addr.s_addr, client_address.sin_port},
-                                    {current_time,                   client_address}});
 
                     time_t msg_timestamp = msg.timestamp;
                     struct tm *msg_time_info = gmtime(&msg_timestamp);
