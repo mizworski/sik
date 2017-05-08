@@ -136,9 +136,8 @@ void try_send_message(std::string &file_content, std::vector<std::pair<time_t, m
         }
         os << msg.ch << file_content.data() << '\0';
         std::__cxx11::string message(os.str());
-        int sflags = 0;
         socklen_t snda_len = (socklen_t) message.size();
-        ssize_t snd_len = sendto(socket.fd, message.c_str(), (size_t) snda_len, sflags,
+        ssize_t snd_len = sendto(socket.fd, message.c_str(), (size_t) snda_len, 0,
                                  (struct sockaddr *) &(messages_to_send.front().second), snda_len);
 
         if (snd_len != snda_len) {
@@ -172,14 +171,14 @@ int main(int argc, char *argv[]) {
     std::vector<std::pair<time_t, struct message>> datagrams(DATAGRAM_BUFFER_SIZE);
     std::deque<std::pair<std::pair<int, time_t>, struct sockaddr_in>> messages_to_send;
 
-    int read_index = 0;
+    int32_t read_index = 0;
 
     while (true) {
         for (int i = 0; i < _POSIX_OPEN_MAX; ++i) {
             sockets[i].revents = 0;
         }
 
-        int ret;
+        int32_t ret;
         if (messages_to_send.empty()) {
             ret = poll(sockets, 1, 5000);
         } else {
@@ -193,8 +192,7 @@ int main(int argc, char *argv[]) {
                 unsigned char raw_msg[MAX_UDP_PACKET_SIZE];
                 struct sockaddr_in client_address;
                 socklen_t rcva_len = (socklen_t) sizeof(client_address);
-                int flags = 0;
-                ssize_t len = recvfrom(sockets[0].fd, &raw_msg, MAX_UDP_PACKET_SIZE, flags,
+                ssize_t len = recvfrom(sockets[0].fd, &raw_msg, MAX_UDP_PACKET_SIZE, 0,
                                        (struct sockaddr *) &client_address, &rcva_len);
 
                 time_t current_time = std::time(0);

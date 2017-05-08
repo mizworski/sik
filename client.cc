@@ -4,8 +4,8 @@
 #include <netdb.h>
 #include <vector>
 
-const int FAILURE = 1;
-const int MAX_UDP_PACKET_SIZE = 65507;
+const int32_t FAILURE = 1;
+const int32_t MAX_UDP_PACKET_SIZE = 65507;
 
 struct message {
     uint64_t timestamp;
@@ -81,14 +81,14 @@ message &deserialize_message(const char *raw_msg, ssize_t rcv_len, message &msg)
     msg.timestamp = 0;
     int32_t mult = 1;
     for (int i = 0; i < 8; ++i) {
-            msg.timestamp += ((uint8_t) raw_msg[i]) * mult;
-            mult *= 256;
-        }
+        msg.timestamp += ((uint8_t) raw_msg[i]) * mult;
+        mult *= 256;
+    }
     msg.ch = raw_msg[8];
 
 
     size_t file_beg = 9;
-    std::__cxx11::string file_content(raw_msg, rcv_len);
+    std::string file_content(raw_msg, (uint32_t) rcv_len);
     msg.file = file_content.substr(file_beg);
     return msg;
 }
