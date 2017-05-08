@@ -54,13 +54,12 @@ void initialize_connection(addrinfo &addr_hints, addrinfo *&addr_result, const s
         throw std::runtime_error("Failed to get address of server.");
     }
 
-    my_address.sin_family = AF_INET; // IPv4
+    my_address.sin_family = AF_INET;
     my_address.sin_addr.s_addr = ((struct sockaddr_in *) (addr_result->ai_addr))->sin_addr.s_addr;
     my_address.sin_port = htons((uint16_t) stoi(port_str));
 
     freeaddrinfo(addr_result);
 
-    /// Open socket
     sock = socket(PF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         throw std::runtime_error("Failed to open socket.");
@@ -123,10 +122,9 @@ int main(int argc, char *argv[]) {
         return FAILURE;
     }
 
-    /// Host and port
     std::string host_str(argv[3]);
-
     std::string port_str("20160");
+
     if (argc == 5) {
         port_str = argv[4];
     }
@@ -151,7 +149,6 @@ int main(int argc, char *argv[]) {
         return FAILURE;
     }
 
-    /// Receiving messages in endless loop
     while (true) {
         struct sockaddr_in server_address;
         char raw_msg[MAX_UDP_PACKET_SIZE];
@@ -170,4 +167,6 @@ int main(int argc, char *argv[]) {
 
         std::cout << msg.timestamp << " " << msg.ch << " " << msg.file << "\n" << std::flush;
     }
+
+    return 0;
 }
