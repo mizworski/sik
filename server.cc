@@ -135,7 +135,7 @@ void try_send_message(std::string &file_content, std::vector<std::pair<time_t, m
             os << byte;
         }
         os << msg.ch << file_content.data() << '\0';
-        std::__cxx11::string message(os.str());
+        std::string message(os.str());
         socklen_t snda_len = (socklen_t) message.size();
         ssize_t snd_len = sendto(socket.fd, message.c_str(), (size_t) snda_len, 0,
                                  (struct sockaddr *) &(messages_to_send.front().second), snda_len);
@@ -158,7 +158,14 @@ int main(int argc, char *argv[]) {
     const std::string port_str(argv[1]);
     const std::string filename(argv[2]);
 
-    std::string file_content = getString(filename);
+    std::string file_content;
+
+    try {
+        file_content = getString(filename);
+    } catch (std::runtime_error e) {
+        std::cerr << e.what() << std::endl;
+        return FAILURE;
+    }
 
     try {
         initialize_connection(server_address, sockets, port_str);
